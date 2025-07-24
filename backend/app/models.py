@@ -1,8 +1,59 @@
 import uuid
-
+from enum import Enum
+from datetime import datetime, timezone
 from pydantic import EmailStr
 from sqlmodel import Field, Relationship, SQLModel
 
+def aware_utcnow():
+    return datetime.now(timezone.utc)
+
+class Status(str, Enum):
+    active = "active"
+    inactive = "inactive"
+    deleted = "deleted"
+
+class SuperBase(SQLModel):
+    id: int | None = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=aware_utcnow, nullable=False)
+    created_by: int | None = None
+    updated_at: datetime = Field(default_factory=aware_utcnow, nullable=False)
+    updated_by: int | None = None
+    status_id: Status | None = Status.active
+
+class SuperBasePublic(SQLModel):
+    id: int
+    created_at: datetime
+    status_id: Status
+
+class CityBase(SQLModel):
+    name: str = Field(max_length=100, description="Название города(населённого пункта)")
+    region_id: int | None = Field(
+        default=None, foreign_key="region.id", description="ID региона"
+    )
+
+
+class City(SuperBase, CityBase, table=True):
+    pass
+
+class CityCreate(CityBase):
+    pass
+
+
+class CityPublic(CityBase, SuperBasePublic):
+    pass
+
+
+class CityPublicWithRelation(CityPublic):
+    pass
+
+
+class CityUpdate(SQLModel):
+    name: str | None = Field(
+        default=None, max_length=100, description="Название города(населённого пункта)"
+    )
+    region_id: int | None = Field(
+        default=None, foreign_key="region.id", description="ID региона"
+    )
 
 # Shared properties
 class UserBase(SQLModel):
