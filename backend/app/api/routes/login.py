@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -41,6 +41,49 @@ def login_access_token(
             user.id, expires_delta=access_token_expires
         )
     )
+
+@router.post("/auth/login", 
+             response_model=UserPublic
+             )
+def login(
+    session: SessionDep,
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    response: Response,
+):
+    """
+    OAuth2 compatible token login, get an access token for future requests
+    """
+    user = crud.authenticate(
+        session=session, email=form_data.username, password=form_data.password
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "username": "Неверно указана почта или пароль",
+                "password": "Неверно указана почта или пароль",
+            },
+        )
+    if not user.is_active :
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"username": "Неактивный пользователь"},
+        )
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    access_token = security.create_access_token(
+        user.id, expires_delta=access_token_expires
+    )
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_SECONDS,
+        httponly=True,
+        secure=settings.ENVIRONMENT != "local",  # Secure in production
+        samesite="lax",
+    )
+    model_dict = user.model_dump()
+    return model_dict
 
 
 @router.post("/login/test-token", response_model=UserPublic)
